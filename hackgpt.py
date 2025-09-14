@@ -81,19 +81,69 @@ except ImportError as e:
     print("Please run: pip install -r requirements.txt")
     sys.exit(1)
 
-# Import our custom modules
+# Import our custom modules with feature flags
+# Database
 try:
     from database import get_db_manager, PentestSession, Vulnerability, User, AuditLog
-    from ai_engine import get_advanced_ai_engine
-    from security import EnterpriseAuth, ComplianceFrameworkMapper
-    from exploitation import AdvancedExploitationEngine, ZeroDayDetector
-    from reporting import DynamicReportGenerator, get_realtime_dashboard
-    from cloud import DockerManager, KubernetesManager, ServiceRegistry
-    from performance import get_cache_manager, get_parallel_processor
+    DB_AVAILABLE = True
 except ImportError as e:
-    print(f"Missing HackGPT modules: {e}")
-    print("Please ensure all modules are properly installed")
-    sys.exit(1)
+    print(f"Warning: database module not available: {e}")
+    DB_AVAILABLE = False
+    get_db_manager = PentestSession = Vulnerability = User = AuditLog = None
+
+# AI Engine
+try:
+    from ai_engine import get_advanced_ai_engine
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: AI engine module not available: {e}")
+    AI_AVAILABLE = False
+    get_advanced_ai_engine = None
+
+# Security
+try:
+    from security import EnterpriseAuth, ComplianceFrameworkMapper
+    SECURITY_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: security module not available: {e}")
+    SECURITY_AVAILABLE = False
+    EnterpriseAuth = ComplianceFrameworkMapper = None
+
+# Exploitation
+try:
+    from exploitation import AdvancedExploitationEngine, ZeroDayDetector
+    EXPLOITATION_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: exploitation module not available: {e}")
+    EXPLOITATION_AVAILABLE = False
+    AdvancedExploitationEngine = ZeroDayDetector = None
+
+# Reporting
+try:
+    from reporting import DynamicReportGenerator, get_realtime_dashboard
+    REPORTING_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: reporting module not available: {e}")
+    REPORTING_AVAILABLE = False
+    DynamicReportGenerator = get_realtime_dashboard = None
+
+# Cloud management
+try:
+    from cloud import DockerManager, KubernetesManager, ServiceRegistry
+    CLOUD_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: cloud module not available: {e}")
+    CLOUD_AVAILABLE = False
+    DockerManager = KubernetesManager = ServiceRegistry = None
+
+# Performance optimizations
+try:
+    from performance import get_cache_manager, get_parallel_processor
+    PERFORMANCE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: performance module not available: {e}")
+    PERFORMANCE_AVAILABLE = False
+    get_cache_manager = get_parallel_processor = None
 
 # Initialize Rich Console
 console = Console()

@@ -76,19 +76,62 @@ pyttsx3 = safe_import('pyttsx3')
 numpy = safe_import('numpy')
 pandas = safe_import('pandas')
 
-# Import our custom modules
+# Import our custom modules with feature flags
 try:
     from database import get_db_manager, PentestSession, Vulnerability, User, AuditLog
-    from ai_engine import get_advanced_ai_engine
-    from security import EnterpriseAuth, ComplianceFrameworkMapper
-    from exploitation import AdvancedExploitationEngine, ZeroDayDetector
-    from reporting import DynamicReportGenerator, get_realtime_dashboard
-    from cloud import DockerManager, KubernetesManager, ServiceRegistry
-    from performance import get_cache_manager, get_parallel_processor
-    MODULES_AVAILABLE = True
+    DB_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: Some modules not available: {e}")
-    MODULES_AVAILABLE = False
+    print(f"Warning: database module not available: {e}")
+    DB_AVAILABLE = False
+    get_db_manager = PentestSession = Vulnerability = User = AuditLog = None
+
+try:
+    from ai_engine import get_advanced_ai_engine
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: AI engine module not available: {e}")
+    AI_AVAILABLE = False
+    get_advanced_ai_engine = None
+
+try:
+    from security import EnterpriseAuth, ComplianceFrameworkMapper
+    SECURITY_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: security module not available: {e}")
+    SECURITY_AVAILABLE = False
+    EnterpriseAuth = ComplianceFrameworkMapper = None
+
+try:
+    from exploitation import AdvancedExploitationEngine, ZeroDayDetector
+    EXPLOITATION_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: exploitation module not available: {e}")
+    EXPLOITATION_AVAILABLE = False
+    AdvancedExploitationEngine = ZeroDayDetector = None
+
+try:
+    from reporting import DynamicReportGenerator, get_realtime_dashboard
+    REPORTING_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: reporting module not available: {e}")
+    REPORTING_AVAILABLE = False
+    DynamicReportGenerator = get_realtime_dashboard = None
+
+try:
+    from cloud import DockerManager, KubernetesManager, ServiceRegistry
+    CLOUD_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: cloud module not available: {e}")
+    CLOUD_AVAILABLE = False
+    DockerManager = KubernetesManager = ServiceRegistry = None
+
+try:
+    from performance import get_cache_manager, get_parallel_processor
+    PERFORMANCE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: performance module not available: {e}")
+    PERFORMANCE_AVAILABLE = False
+    get_cache_manager = get_parallel_processor = None
 
 # Initialize Rich Console
 console = Console()
@@ -208,39 +251,39 @@ class EnterpriseHackGPT:
         """Initialize core components"""
         try:
             # Database
-            if MODULES_AVAILABLE:
+            if DB_AVAILABLE:
                 self.db = get_db_manager()
                 self.console.print("[green]✓[/green] Database connection initialized")
             else:
                 self.db = None
                 self.console.print("[yellow]⚠[/yellow] Database not available")
-            
+
             # AI Engine
-            if MODULES_AVAILABLE and (config.OPENAI_API_KEY or self.check_local_llm()):
+            if AI_AVAILABLE and (config.OPENAI_API_KEY or self.check_local_llm()):
                 self.ai_engine = get_advanced_ai_engine()
                 self.console.print("[green]✓[/green] Advanced AI Engine initialized")
             else:
                 self.ai_engine = self.create_fallback_ai()
                 self.console.print("[yellow]⚠[/yellow] Using fallback AI engine")
-            
+
             # Authentication
-            if MODULES_AVAILABLE:
+            if SECURITY_AVAILABLE:
                 self.auth = EnterpriseAuth()
                 self.console.print("[green]✓[/green] Enterprise authentication initialized")
             else:
                 self.auth = None
                 self.console.print("[yellow]⚠[/yellow] Authentication not available")
-            
+
             # Cache Manager
-            if MODULES_AVAILABLE:
+            if PERFORMANCE_AVAILABLE:
                 self.cache = get_cache_manager()
                 self.console.print("[green]✓[/green] Cache manager initialized")
             else:
                 self.cache = None
                 self.console.print("[yellow]⚠[/yellow] Cache not available")
-            
+
             # Parallel Processor
-            if MODULES_AVAILABLE:
+            if PERFORMANCE_AVAILABLE:
                 self.processor = get_parallel_processor()
                 self.console.print("[green]✓[/green] Parallel processor initialized")
             else:
@@ -252,15 +295,15 @@ class EnterpriseHackGPT:
             self.console.print("[green]✓[/green] Enterprise tool manager initialized")
             
             # Compliance Framework
-            if MODULES_AVAILABLE:
+            if SECURITY_AVAILABLE:
                 self.compliance = ComplianceFrameworkMapper()
                 self.console.print("[green]✓[/green] Compliance framework initialized")
             else:
                 self.compliance = None
                 self.console.print("[yellow]⚠[/yellow] Compliance framework not available")
-            
+
             # Exploitation Engine
-            if MODULES_AVAILABLE:
+            if EXPLOITATION_AVAILABLE:
                 self.exploitation = AdvancedExploitationEngine()
                 self.zero_day_detector = ZeroDayDetector()
                 self.console.print("[green]✓[/green] Advanced exploitation engine initialized")
@@ -268,9 +311,9 @@ class EnterpriseHackGPT:
                 self.exploitation = None
                 self.zero_day_detector = None
                 self.console.print("[yellow]⚠[/yellow] Advanced exploitation not available")
-            
+
             # Reporting
-            if MODULES_AVAILABLE:
+            if REPORTING_AVAILABLE:
                 self.report_generator = DynamicReportGenerator()
                 self.console.print("[green]✓[/green] Dynamic report generator initialized")
             else:
@@ -285,14 +328,14 @@ class EnterpriseHackGPT:
         """Initialize enterprise services"""
         try:
             # Cloud services
-            if MODULES_AVAILABLE and docker:
+            if CLOUD_AVAILABLE and docker:
                 self.docker_manager = DockerManager()
                 self.console.print("[green]✓[/green] Docker manager initialized")
             else:
                 self.docker_manager = None
                 self.console.print("[yellow]⚠[/yellow] Docker not available")
-            
-            if MODULES_AVAILABLE:
+
+            if CLOUD_AVAILABLE:
                 self.k8s_manager = KubernetesManager()
                 self.service_registry = ServiceRegistry(backend=config.SERVICE_REGISTRY_BACKEND)
                 self.console.print("[green]✓[/green] Cloud services initialized")
@@ -318,7 +361,7 @@ class EnterpriseHackGPT:
                 self.console.print("[yellow]⚠[/yellow] Web dashboard not available")
             
             # Real-time dashboard
-            if config.ENABLE_REALTIME_DASHBOARD and MODULES_AVAILABLE:
+            if config.ENABLE_REALTIME_DASHBOARD and REPORTING_AVAILABLE:
                 self.realtime_dashboard = get_realtime_dashboard()
                 self.console.print("[green]✓[/green] Real-time dashboard initialized")
             else:
@@ -381,7 +424,7 @@ class EnterpriseHackGPT:
         
         components = [
             ("Database", "✓ Connected" if self.db else "⚠ Not Available", "PostgreSQL"),
-            ("AI Engine", "✓ Advanced" if MODULES_AVAILABLE else "⚠ Fallback", "ML-Enhanced"),
+            ("AI Engine", "✓ Advanced" if AI_AVAILABLE else "⚠ Fallback", "ML-Enhanced"),
             ("Authentication", "✓ Enterprise" if self.auth else "⚠ Basic", "RBAC+LDAP"),
             ("Cache", "✓ Multi-Layer" if self.cache else "⚠ None", "Redis+Memory"),
             ("Parallel Processing", "✓ Available" if self.processor else "⚠ Sequential", f"{config.MAX_WORKERS} workers"),
