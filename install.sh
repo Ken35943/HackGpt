@@ -81,6 +81,9 @@ info() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')] INFO:${NC} $1"
 }
 
+# Exit on any command failure
+trap 'error "Installation failed. Exiting."' ERR
+
 # Banner
 echo -e "${PURPLE}"
 echo "██╗  ██╗ █████╗  ██████╗██╗  ██╗ ██████╗ ██████╗ ████████╗"
@@ -156,95 +159,7 @@ install_system_deps() {
                 redis-server 
                 postgresql postgresql-contrib 
                 docker.io docker-compose 
-                nmap masscan 
-                git curl wget 
-                portaudio19-dev 
-                libldap2-dev libsasl2-dev 
-                pandoc texlive-latex-recommended 
-                gobuster dirbuster dirb 
-                nikto sqlmap 
-                hydra medusa 
-                metasploit-framework 
-                wireshark tshark 
-                aircrack-ng 
-                john hashcat 
-                binwalk foremost 
-                steghide stegsolve 
-                exiftool 
-                burpsuite zaproxy
-            ;;
-        "RedHat/CentOS")
-            sudo yum update -y
-            sudo yum groupinstall -y "Development Tools"
-            sudo yum install -y 
-                python3-devel python3-pip 
-                openssl-devel libffi-devel 
-                postgresql-devel 
-                redis 
-                postgresql postgresql-server 
-                docker docker-compose 
-                nmap masscan 
-                git curl wget
-            ;;
-        "Arch")
-            sudo pacman -Sy
-            sudo pacman -S --noconfirm 
-                python python-pip 
-                base-devel openssl libffi 
-                postgresql-libs 
-                redis 
-                postgresql 
-                docker docker-compose 
-                nmap masscan 
-                git curl wget
-            ;;
-        "macOS")
-            if ! command -v brew &> /dev/null; then
-                log "Installing Homebrew..."
-                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            fi
-            
-            brew update
-            brew install 
-                python@3.11 
-                postgresql 
-                redis 
-                docker docker-compose 
-                nmap masscan 
-                git curl wget 
-                portaudio 
-                openldap 
-                pandoc
-            ;;
-    esac
-}
-
-# Setup PostgreSQL
-setup_postgresql() {
-    log "Setting up PostgreSQL database..."
-    
-    case $OS in
-        "Debian/Ubuntu"|"Linux")
-            sudo systemctl start postgresql
-            sudo systemctl enable postgresql
-            
-            # Create database and user
-            sudo -u postgres psql -c "CREATE DATABASE hackgpt;" 2>/dev/null || warn "Database hackgpt already exists"
-            sudo -u postgres psql -c "CREATE USER hackgpt WITH PASSWORD 'hackgpt123';" 2>/dev/null || warn "User hackgpt already exists"
-            sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE hackgpt TO hackgpt;" 2>/dev/null
-            ;;
-        "macOS")
-            brew services start postgresql
-            
-            createdb hackgpt 2>/dev/null || warn "Database hackgpt already exists"
-            psql -d postgres -c "CREATE USER hackgpt WITH PASSWORD 'hackgpt123';" 2>/dev/null || warn "User hackgpt already exists"
-            psql -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE hackgpt TO hackgpt;" 2>/dev/null
-            ;;
-    esac
-    
-    log "PostgreSQL setup completed"
-}
-
+@@ -248,85 +201,87 @@ setup_postgresql() {
 # Setup Redis
 setup_redis() {
     log "Setting up Redis cache server..."
@@ -271,6 +186,7 @@ setup_docker() {
             sudo systemctl start docker
             sudo systemctl enable docker
             sudo usermod -aG docker $USER
+            sudo usermod -aG docker "$USER"
             ;;
         "macOS")
             log "Please start Docker Desktop manually"
@@ -286,14 +202,18 @@ create_venv() {
     
     if [ ! -d "venv" ]; then
         $PYTHON_CMD -m venv venv
+        python3 -m venv venv
         log "Virtual environment created"
     else
         log "Virtual environment already exists"
     fi
     
+
     # Activate virtual environment
+    # shellcheck source=/dev/null
     source venv/bin/activate
     
+
     # Upgrade pip
     pip install --upgrade pip
     log "Virtual environment activated and pip upgraded"
@@ -305,6 +225,7 @@ install_python_deps() {
     
     # Make sure we're in virtual environment
     if [[ "$VIRTUAL_ENV" == "" ]]; then
+        # shellcheck source=/dev/null
         source venv/bin/activate
     fi
     
@@ -330,40 +251,7 @@ install_pentest_tools() {
     mkdir -p tools
     cd tools
     
-    # Install Go tools (if Go is available)
-    if command -v go &> /dev/null; then
-        log "Installing Go-based tools..."
-        go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-        go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-        go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
-        go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
-        go install github.com/OWASP/Amass/v3/...@master
-    else
-        warn "Go not installed, skipping Go-based tools"
-    fi
-    
-    # Install additional Python tools
-    if [[ "$VIRTUAL_ENV" != "" ]]; then
-        pip install 
-            impacket 
-            bloodhound 
-            crackmapexec 
-            responder 
-            mitm6 
-            ldapdomaindump
-    fi
-    
-    cd ..
-    log "Additional penetration testing tools installed"
-}
-
-# Setup Kubernetes tools
-setup_kubernetes() {
-    log "Setting up Kubernetes tools..."
-    
-    # Install kubectl
-    case $OS in
-        "Debian/Ubuntu"|"Linux")
+@@ -367,50 +322,77 @@ setup_kubernetes() {
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
@@ -387,6 +275,33 @@ setup_kubernetes() {
     esac
     
     log "Kubernetes tools installed"
+}
+
+# Install Ollama with checksum verification
+install_ollama() {
+    log "Installing Ollama for local AI support..."
+
+    case $OS in
+        "Debian/Ubuntu"|"Linux")
+            OLLAMA_VERSION="0.11.10"
+            OLLAMA_ARCHIVE="ollama-linux-amd64.tgz"
+            curl -L -o "$OLLAMA_ARCHIVE" "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/${OLLAMA_ARCHIVE}"
+            curl -L -o sha256sum.txt "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/sha256sum.txt"
+            grep "$OLLAMA_ARCHIVE" sha256sum.txt | sha256sum -c -
+            sudo tar -C /usr/local -xzf "$OLLAMA_ARCHIVE"
+            rm "$OLLAMA_ARCHIVE" sha256sum.txt
+            ;;
+        "macOS")
+            if command -v brew &> /dev/null; then
+                brew install ollama/tap/ollama
+            else
+                warn "Homebrew not found. Install Ollama manually from https://github.com/ollama/ollama/releases"
+            fi
+            ;;
+        *)
+            warn "Automatic Ollama installation not supported on $OS. Please install manually from https://github.com/ollama/ollama/releases"
+            ;;
+    esac
 }
 
 # Create configuration files
@@ -414,155 +329,7 @@ local_model = llama2:7b
 secret_key = 
 jwt_algorithm = HS256
 jwt_expiry = 3600
-
-[ldap]
-server = 
-bind_dn = 
-bind_password = 
-
-[performance]
-max_workers = 10
-cache_ttl = 3600
-
-[features]
-enable_voice = true
-enable_web_dashboard = true
-enable_realtime_dashboard = true
-
-[cloud]
-docker_host = unix:///var/run/docker.sock
-kubernetes_config = 
-service_registry_backend = memory
-
-[compliance]
-frameworks = OWASP,NIST,ISO27001,SOC2
-auto_compliance_check = true
-generate_compliance_reports = true
-
-[reporting]
-output_formats = html,pdf,json,xml
-template_directory = templates/
-report_directory = reports/
-
-[exploitation]
-enable_auto_exploit = false
-max_exploit_threads = 5
-safe_mode = true
-
-[monitoring]
-prometheus_enabled = false
-grafana_enabled = false
-elasticsearch_enabled = false
-
-[backup]
-auto_backup = true
-backup_interval = 24
-backup_retention = 30
-EOF
-        log "Configuration file created"
-    else
-        log "Configuration file already exists"
-    fi
-    
-    # Create .env.example
-    if [ ! -f ".env.example" ]; then
-        cat > .env.example << 'EOF'
-# HackGPT Enterprise Environment Variables
-
-# Database Configuration
-DATABASE_URL=postgresql://hackgpt:hackgpt123@localhost:5432/hackgpt
-REDIS_URL=redis://localhost:6379/0
-
-# AI Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4
-LOCAL_LLM_ENDPOINT=http://localhost:11434
-
-# Security
-SECRET_KEY=your_secret_key_here
-JWT_SECRET_KEY=your_jwt_secret_key_here
-ENCRYPTION_KEY=your_encryption_key_here
-
-# LDAP Configuration
-LDAP_SERVER=ldaps://your-ldap-server.com:636
-LDAP_BIND_DN=cn=admin,dc=example,dc=com
-LDAP_BIND_PASSWORD=your_ldap_password
-
-# Cloud Services
-DOCKER_HOST=unix:///var/run/docker.sock
-KUBECONFIG=/path/to/kubeconfig
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-AZURE_SUBSCRIPTION_ID=your_azure_subscription_id
-GCP_PROJECT_ID=your_gcp_project_id
-
-# Monitoring
-PROMETHEUS_ENDPOINT=http://localhost:9090
-GRAFANA_ENDPOINT=http://localhost:3000
-ELASTICSEARCH_ENDPOINT=http://localhost:9200
-
-# Third-party APIs
-SHODAN_API_KEY=your_shodan_api_key
-CENSYS_API_ID=your_censys_api_id
-CENSYS_API_SECRET=your_censys_api_secret
-VIRUSTOTAL_API_KEY=your_virustotal_api_key
-
-# Notification Settings
-SLACK_WEBHOOK_URL=your_slack_webhook_url
-DISCORD_WEBHOOK_URL=your_discord_webhook_url
-EMAIL_SMTP_SERVER=smtp.gmail.com
-EMAIL_SMTP_PORT=587
-EMAIL_USERNAME=your_email@gmail.com
-EMAIL_PASSWORD=your_email_password
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=json
-LOG_ROTATION=daily
-EOF
-        log "Environment template created"
-    else
-        log "Environment template already exists"
-    fi
-    
-    # Create directories
-    mkdir -p logs reports templates database/migrations
-    mkdir -p ai_engine/models security/certificates
-    mkdir -p exploitation/payloads reporting/templates
-    mkdir -p cloud/deployments performance/cache
-    
-    log "Directory structure created"
-}
-
-# Setup database schema
-setup_database_schema() {
-    log "Setting up database schema..."
-    
-    if [[ "$VIRTUAL_ENV" != "" ]]; then
-        # Create database tables
-        python3 -c "
-from database import create_tables
-try:
-    create_tables()
-    print('Database schema created successfully')
-except Exception as e:
-    print(f'Database schema creation failed: {e}')
-" 2>/dev/null || warn "Database schema setup failed - will be created on first run"
-    fi
-}
-
-# Download additional resources
-download_resources() {
-    log "Downloading additional resources..."
-    
-    # Download wordlists
-    mkdir -p wordlists
-    cd wordlists
-    
-    if [ ! -f "rockyou.txt" ]; then
-        warn "Downloading wordlists (this may take a while)..."
-        # Download common wordlists
-        wget -q https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10-million-password-list-top-1000000.txt -O top-passwords.txt || warn "Failed to download password list"
+@@ -566,106 +548,93 @@ download_resources() {
         wget -q https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt -O common-dirs.txt || warn "Failed to download directory list"
     fi
     
@@ -589,6 +356,10 @@ final_setup() {
         python3 test_installation.py || warn "Installation test failed"
     fi
     
+
+    # Create global command
+    sudo ln -sf "$(pwd)/hackgpt.py" /usr/local/bin/hackgpt || warn "Failed to create global command"
+
     log "Final setup completed"
 }
 
@@ -615,10 +386,13 @@ main() {
     install_pentest_tools
     setup_kubernetes
     
+    install_ollama
+
     # Create configuration
     create_config_files
     setup_database_schema
     
+
     # Download resources
     download_resources
     
